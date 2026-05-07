@@ -231,3 +231,18 @@ if __name__ == "__main__":
         rel_err = np.max(np.abs(my_grads[k] - torch_grads[k]) /
                         np.maximum(1e-10, np.abs(my_grads[k]) + np.abs(torch_grads[k])))
         print(f"  {k}:  max abs err = {abs_err:.2e}   max rel err = {rel_err:.2e}")
+
+    print("\n-- Overfit sanity check --")
+    overfit_RNN = InitRNN(m, K, seed=42)
+    X_over = Char2oneHot(book_data[0:seq_length],   char_to_ind, K)
+    Y_over = Char2oneHot(book_data[1:seq_length+1], char_to_ind, K)
+    h0_over = np.zeros((m, 1))
+    eta_over = 0.1
+
+    for step in range(200):
+        loss_over, _, cache_over = ForwardPass(overfit_RNN, X_over, Y_over, h0_over)
+        grads_over = BackwardPass(overfit_RNN, cache_over)
+        for k in overfit_RNN:
+            overfit_RNN[k] -= eta_over * grads_over[k]
+        if (step+1) % 50 == 0:
+            print(f"  step {step+1:3d}  loss = {loss_over:.4f}")
