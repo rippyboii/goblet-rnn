@@ -35,6 +35,16 @@ def oneHot2Char(one_hot, ind2char):
     indices = np.argmax(one_hot, axis=0)
     return ''.join(ind2char[i] for i in indices)
 
+def InitRNN(m, K, seed=42):
+    """Initialize RNN parameters. m = hidden size, K = vocab size."""
+    rng = np.random.default_rng(seed)
+    RNN = {}
+    RNN['U'] = (1/np.sqrt(2*K)) * rng.standard_normal((m, K))
+    RNN['W'] = (1/np.sqrt(2*m)) * rng.standard_normal((m, m))
+    RNN['V'] = (1/np.sqrt(m))   * rng.standard_normal((K, m))
+    RNN['b'] = np.zeros((m, 1))
+    RNN['c'] = np.zeros((K, 1))
+    return RNN
 
 if __name__ == "__main__":
     book_data = loadbook(data_dir / "goblet_book.txt")
@@ -50,3 +60,14 @@ if __name__ == "__main__":
     recovered = oneHot2Char(X_test, ind_to_char)
     assert recovered == test_str, f"Round-trip failed: {recovered}"
     print(f"One-hot round-trip OK: '{test_str}' to matrix({X_test.shape}) to '{recovered}'")
+
+    # Hyperparameters
+    m = 100
+    seq_length = 25
+    eta= 0.001
+
+    RNN = InitRNN(m, K, seed=42)
+
+    print(f"\n-- RNN parameter shapes --")
+    for key, val in RNN.items():
+        print(f"  {key}: {val.shape}")
