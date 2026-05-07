@@ -46,6 +46,35 @@ def InitRNN(m, K, seed=42):
     RNN['c'] = np.zeros((K, 1))
     return RNN
 
+def SynthesizeText(RNN, h0, x0, n, rng):
+    """
+    Generate n characters from the RNN. h0: (m×1) initial hidden state, x0: (K×1) one-hot seed character. Returns synthesized string.
+    """
+    h = h0.copy()
+    x = x0.copy()
+    indices = []
+
+    for _ in range(n):
+        a = RNN['W'] @ h + RNN['U'] @ x + RNN['b'] # (m×1)
+        h = np.tanh(a) # (m×1)
+        o = RNN['V'] @ h + RNN['c'] # (K×1)
+        
+        o_shifted = o - np.max(o)
+        exp_o = np.exp(o_shifted)
+        p = exp_o / np.sum(exp_o)  # (K×1)
+
+        # sample a character
+        cp = np.cumsum(p, axis=0)
+        a_draw = rng.uniform()
+        ii = np.argmax(cp - a_draw > 0)
+        indices.append(ii)
+
+        # sampled char becomes next input
+        x = np.zeros_like(x0)
+        x[ii, 0] = 1.0
+
+    return ''.join(ind_to_char[i] for i in indices)
+
 if __name__ == "__main__":
     book_data = loadbook(data_dir / "goblet_book.txt")
     unique_chars, K, char_to_ind, ind_to_char = VocabBuilder(book_data)
@@ -71,3 +100,12 @@ if __name__ == "__main__":
     print(f"\n-- RNN parameter shapes --")
     for key, val in RNN.items():
         print(f"  {key}: {val.shape}")
+
+    rng_synth = np.random.default_rng(42)
+
+    # seed: first character of the book, zero hidden state
+    h0 = np.zeros((m, 1))
+    x0 = Char2oneHot(book_data[0], char_to_ind, K).reshape(K, 1)
+
+    synth = SynthesizeText(RNN, h0, x0, n=200, rng=rng_synth)
+    print(f"\n-- Synthesized text (random init) --\n{synth}")
