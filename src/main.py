@@ -2,6 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from torch_gradient_computations_column_wise import ComputeGradsWithTorch
 
 ROOT = Path(__file__).resolve().parents[1]
 data_dir  = ROOT / "Datasets"

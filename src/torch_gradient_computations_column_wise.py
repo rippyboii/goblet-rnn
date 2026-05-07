@@ -29,7 +29,15 @@ def ComputeGradsWithTorch(X, y, h0, RNN):
         # (ie equations (1,2) in the assignment instructions)
         # Store results in Hs
 
-        # Don't forget to update hprev!   
+        # Don't forget to update hprev!
+
+        at = torch.matmul(torch_network['W'], hprev) + \
+            torch.matmul(torch_network['U'], Xt[:, t:t+1]) + \
+            torch_network['b']
+        ht = apply_tanh(at)
+        Hs[:, t:t+1] = ht
+        hprev = ht
+        
         #### END of your code ######            
 
     Os = torch.matmul(torch_network['V'], Hs) + torch_network['c']        
