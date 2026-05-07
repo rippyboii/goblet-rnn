@@ -202,3 +202,32 @@ if __name__ == "__main__":
     print(f"  loss : {loss:.4f}  (expect ~log({K}) = {np.log(K):.4f} for random weights)")
     for k, v in grads.items():
         print(f"  grad_{k}: {v.shape}  max_abs={np.max(np.abs(v)):.4e}")
+
+    # Use a small network for numerical stability
+    m_small  = 10
+    seq_small = 25
+    rng_check = np.random.default_rng(0)
+
+    small_RNN = {}
+    small_RNN['U'] = (1/np.sqrt(2*K))    * rng_check.standard_normal((m_small, K))
+    small_RNN['W'] = (1/np.sqrt(2*m_small)) * rng_check.standard_normal((m_small, m_small))
+    small_RNN['V'] = (1/np.sqrt(m_small)) * rng_check.standard_normal((K, m_small))
+    small_RNN['b'] = np.zeros((m_small, 1))
+    small_RNN['c'] = np.zeros((K, 1))
+
+    X_chk = Char2oneHot(book_data[0:seq_small],   char_to_ind, K)
+    Y_chk = Char2oneHot(book_data[1:seq_small+1], char_to_ind, K)
+    y_chk = np.argmax(Y_chk, axis=0)
+
+    h0_chk = np.zeros((m_small, 1))
+
+    _, _, cache_chk = ForwardPass(small_RNN, X_chk, Y_chk, h0_chk)
+    my_grads    = BackwardPass(small_RNN, cache_chk)
+    torch_grads = ComputeGradsWithTorch(X_chk, y_chk, h0_chk, small_RNN)
+
+    print("\n-- Gradient check --")
+    for k in my_grads:
+        abs_err = np.max(np.abs(my_grads[k] - torch_grads[k]))
+        rel_err = np.max(np.abs(my_grads[k] - torch_grads[k]) /
+                        np.maximum(1e-10, np.abs(my_grads[k]) + np.abs(torch_grads[k])))
+        print(f"  {k}:  max abs err = {abs_err:.2e}   max rel err = {rel_err:.2e}")

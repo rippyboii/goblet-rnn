@@ -45,7 +45,7 @@ def ComputeGradsWithTorch(X, y, h0, RNN):
     
     # compute the loss
     
-    loss = torch.mean(-torch.log(P[y, np.arange(tau)]))
+    loss = torch.mean(-torch.log(P[y, torch.arange(tau)]))
     
     # compute the backward pass relative to the loss and the named parameters 
     loss.backward()
