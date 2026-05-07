@@ -12,7 +12,7 @@ out_dir.mkdir(exist_ok=True)
 
 def loadbook(filepath):
     with open(filepath, 'r') as f:
-        data = f.read().splitlines()
+        data = f.read()
     return data
 
 def VocabBuilder(data):
@@ -30,3 +30,23 @@ def Char2oneHot(chars, char2ind, k):
         one_hot[char2ind[c], i] = 1.0
     return one_hot
 
+def oneHot2Char(one_hot, ind2char):
+    """convert one hot matrix (kxt) to a string"""
+    indices = np.argmax(one_hot, axis=0)
+    return ''.join(ind2char[i] for i in indices)
+
+
+if __name__ == "__main__":
+    book_data = loadbook(data_dir / "goblet_book.txt")
+    unique_chars, K, char_to_ind, ind_to_char = VocabBuilder(book_data)
+
+    print(f"Book length : {len(book_data):,} characters")
+    print(f"Unique chars: {K}")
+    print(f"First 50 chars : {book_data[:50]!r}")
+    print(f"Sample mapping: 'H' to {char_to_ind['H']}, {char_to_ind['H']} to '{ind_to_char[char_to_ind['H']]}'")
+
+    test_str = "Harry"
+    X_test = Char2oneHot(test_str, char_to_ind, K)
+    recovered = oneHot2Char(X_test, ind_to_char)
+    assert recovered == test_str, f"Round-trip failed: {recovered}"
+    print(f"One-hot round-trip OK: '{test_str}' to matrix({X_test.shape}) to '{recovered}'")
