@@ -23,3 +23,10 @@ def VocabBuilder(data):
     ind2char = {i:c for i, c in enumerate(unique_char)}
     return unique_char, k, char2ind, ind2char
 
+def Char2oneHot(chars, char2ind, k):
+    """it'll return one-hot encoded vector of the given characters"""
+    one_hot = np.zeros((k, len(chars)))
+    for i, c in enumerate(chars):
+        one_hot[char2ind[c], i] = 1.0
+    return one_hot
+
