@@ -75,6 +75,85 @@ def SynthesizeText(RNN, h0, x0, n, rng):
 
     return ''.join(ind_to_char[i] for i in indices)
 
+
+def ForwardPass(RNN, X, Y, h0):
+    """
+    X:  K×τ  one-hot input matrix
+    Y:  K×τ  one-hot target matrix
+    h0: m×1  initial hidden state
+    Returns: loss (scalar), P (K×τ), cache dict
+    """
+    K, tau = X.shape
+    m = h0.shape[0]
+
+    H = np.zeros((m, tau))   # hidden states at each timestep
+
+    h = h0.copy()
+    for t in range(tau):
+        a = RNN['W'] @ h + RNN['U'] @ X[:, t:t+1] + RNN['b']  # (m×1)
+        h = np.tanh(a) # (m×1)
+        H[:, t:t+1] = h
+
+    # output layer, vectorized over all timesteps
+    O = RNN['V'] @ H + RNN['c']# (K×τ)
+
+    # numerically stable softmax
+    O -= np.max(O, axis=0, keepdims=True)
+    exp_O = np.exp(O)
+    P = exp_O / np.sum(exp_O, axis=0, keepdims=True) # (K×τ)
+
+    # loss
+    y_inds = np.argmax(Y, axis=0)
+    loss = -np.mean(np.log(P[y_inds, np.arange(tau)]))
+
+    cache = {'X': X, 'Y': Y, 'H': H, 'P': P, 'h0': h0}
+    return loss, P, cache
+
+
+def BackwardPass(RNN, cache):
+    """
+    Returns gradients for all 5 parameters.
+    """
+    X   = cache['X']
+    Y   = cache['Y']
+    H   = cache['H']
+    P   = cache['P']
+    h0  = cache['h0']
+    tau = X.shape[1]
+
+    # output layer gradients. G already carries the 1/τ factor
+    G = (P - Y) / tau # K×τ
+
+    grad_V = G @ H.T # K×m
+    grad_c = np.sum(G, axis=1, keepdims=True)  # K×1
+
+    # initialize recurrent gradients
+    grad_W = np.zeros_like(RNN['W'])  # m×m
+    grad_U = np.zeros_like(RNN['U'])  # m×K
+    grad_b = np.zeros_like(RNN['b'])  # m×1
+
+    grad_a_next = np.zeros((H.shape[0], 1)) # m×1, starts at zero
+
+    for t in reversed(range(tau)):
+        h_t    = H[:, t:t+1]  # m×1
+        h_prev = H[:, t-1:t] if t > 0 else h0  # m×1
+        x_t    = X[:, t:t+1] # K×1
+        g_t    = G[:, t:t+1] # K×1
+
+        # gradient w.r.t. h_t: from output and from next timestep
+        grad_h = RNN['V'].T @ g_t + RNN['W'].T @ grad_a_next   # m×1
+
+        # gradient w.r.t. a_t (through tanh)
+        grad_a = grad_h * (1 - h_t**2)             # m×1
+
+        grad_W += grad_a @ h_prev.T
+        grad_U += grad_a @ x_t.T
+        grad_b += grad_a
+
+        grad_a_next = grad_a
+
+    return {'V': grad_V, 'c': grad_c, 'W': grad_W, 'U': grad_U, 'b': grad_b}
+
 if __name__ == "__main__":
     book_data = loadbook(data_dir / "goblet_book.txt")
     unique_chars, K, char_to_ind, ind_to_char = VocabBuilder(book_data)
@@ -109,3 +188,16 @@ if __name__ == "__main__":
 
     synth = SynthesizeText(RNN, h0, x0, n=200, rng=rng_synth)
     print(f"\n-- Synthesized text (random init) --\n{synth}")
+
+    seq = book_data[0:seq_length]
+    X_seq = Char2oneHot(seq,          char_to_ind, K)   # K×25
+    Y_seq = Char2oneHot(book_data[1:seq_length+1], char_to_ind, K)
+
+    h0 = np.zeros((m, 1))
+    loss, P, cache = ForwardPass(RNN, X_seq, Y_seq, h0)
+    grads = BackwardPass(RNN, cache)
+
+    print(f"\n-- Forward/Backward sanity --")
+    print(f"  loss : {loss:.4f}  (expect ~log({K}) = {np.log(K):.4f} for random weights)")
+    for k, v in grads.items():
+        print(f"  grad_{k}: {v.shape}  max_abs={np.max(np.abs(v)):.4e}")
