@@ -271,3 +271,17 @@ if __name__ == "__main__":
             overfit_RNN[k] -= eta_over * grads_over[k]
         if (step+1) % 50 == 0:
             print(f"  step {step+1:3d}  loss = {loss_over:.4f}")
+
+    print("\n-- Overfit check with Adam --")
+    adam_RNN    = InitRNN(m, K, seed=42)
+    m_adam, v_adam = InitAdam(adam_RNN)
+    h0_over     = np.zeros((m, 1))
+    adam_step   = 0
+
+    for step in range(200):
+        loss_a, _, cache_a = ForwardPass(adam_RNN, X_over, Y_over, h0_over)
+        grads_a = BackwardPass(adam_RNN, cache_a)
+        adam_step += 1
+        AdamUpdate(adam_RNN, grads_a, m_adam, v_adam, adam_step, eta=0.001)
+        if (step+1) % 50 == 0:
+            print(f"  step {step+1:3d}  loss = {loss_a:.4f}")
