@@ -155,6 +155,31 @@ def BackwardPass(RNN, cache):
 
     return {'V': grad_V, 'c': grad_c, 'W': grad_W, 'U': grad_U, 'b': grad_b}
 
+def InitAdam(RNN):
+    """Initialize first and second moment vectors to zero, same shape as each param."""
+    m = {k: np.zeros_like(v) for k, v in RNN.items()}
+    v = {k: np.zeros_like(v) for k, v in RNN.items()}
+    return m, v
+
+
+def AdamUpdate(RNN, grads, m, v, t, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
+    """
+    One Adam update step.
+    t: current iteration (1-indexed, increment before calling)
+    Updates RNN, m, v in place.
+    """
+    for k in RNN:
+        # update moments
+        m[k] = beta1 * m[k] + (1 - beta1) * grads[k]
+        v[k] = beta2 * v[k] + (1 - beta2) * grads[k]**2
+
+        # bias correction
+        m_hat = m[k] / (1 - beta1**t)
+        v_hat = v[k] / (1 - beta2**t)
+
+        # parameter update
+        RNN[k] -= eta * m_hat / (np.sqrt(v_hat) + eps)
+
 if __name__ == "__main__":
     book_data = loadbook(data_dir / "goblet_book.txt")
     unique_chars, K, char_to_ind, ind_to_char = VocabBuilder(book_data)
