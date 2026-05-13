@@ -122,18 +122,16 @@ def BackwardPass(RNN, cache):
     h0  = cache['h0']
     tau = X.shape[1]
 
-    # output layer gradients. G already carries the 1/τ factor
     G = (P - Y) / tau # K×τ
 
     grad_V = G @ H.T # K×m
     grad_c = np.sum(G, axis=1, keepdims=True)  # K×1
 
-    # initialize recurrent gradients
     grad_W = np.zeros_like(RNN['W'])  # m×m
     grad_U = np.zeros_like(RNN['U'])  # m×K
     grad_b = np.zeros_like(RNN['b'])  # m×1
 
-    grad_a_next = np.zeros((H.shape[0], 1)) # m×1, starts at zero
+    grad_a_next = np.zeros((H.shape[0], 1)) # m×1
 
     for t in reversed(range(tau)):
         h_t    = H[:, t:t+1]  # m×1
@@ -141,10 +139,9 @@ def BackwardPass(RNN, cache):
         x_t    = X[:, t:t+1] # K×1
         g_t    = G[:, t:t+1] # K×1
 
-        # gradient w.r.t. h_t: from output and from next timestep
         grad_h = RNN['V'].T @ g_t + RNN['W'].T @ grad_a_next   # m×1
 
-        # gradient w.r.t. a_t (through tanh)
+
         grad_a = grad_h * (1 - h_t**2)             # m×1
 
         grad_W += grad_a @ h_prev.T
@@ -228,7 +225,6 @@ if __name__ == "__main__":
     for k, v in grads.items():
         print(f"  grad_{k}: {v.shape}  max_abs={np.max(np.abs(v)):.4e}")
 
-    # Use a small network for numerical stability
     m_small  = 10
     seq_small = 25
     rng_check = np.random.default_rng(0)
