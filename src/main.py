@@ -176,7 +176,7 @@ def AdamUpdate(RNN, grads, m, v, t, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-8)
 
         # parameter update
         RNN[k] -= eta * m_hat / (np.sqrt(v_hat) + eps)
-        
+
 def TrainRNN(RNN, book_data, char_to_ind, ind_to_char, K, m,
              seq_length=25, eta=0.001, n_epochs=2, rng=None):
     if rng is None:
@@ -336,3 +336,11 @@ if __name__ == "__main__":
         AdamUpdate(adam_RNN, grads_a, m_adam, v_adam, adam_step, eta=0.001)
         if (step+1) % 50 == 0:
             print(f"  step {step+1:3d}  loss = {loss_a:.4f}")
+
+    print("\n-- Training --")
+    RNN = InitRNN(m, K, seed=42)
+    rng_train = np.random.default_rng(42)
+    RNN, final_loss = TrainRNN(
+        RNN, book_data, char_to_ind, ind_to_char, K, m,
+        seq_length=seq_length, eta=eta, n_epochs=2, rng=rng_train
+    )
