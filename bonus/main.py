@@ -76,6 +76,69 @@ def SynthesizeText(RNN, h0, x0, n, rng):
 
     return ''.join(ind_to_char[i] for i in indices)
 
+def SynthesizeTemp(RNN, h0, x0, n, rng, T=1.0):
+    """
+    Temperature sampling. T<1 = more peaked (safer), T>1 = flatter (more random).
+    """
+    h = h0.copy()
+    x = x0.copy()
+    indices = []
+
+    for _ in range(n):
+        a = RNN['W'] @ h + RNN['U'] @ x + RNN['b']
+        h = np.tanh(a)
+        o = RNN['V'] @ h + RNN['c']
+
+        # divide by T before softmax
+        o_scaled = o / T
+        o_scaled -= np.max(o_scaled)
+        p = np.exp(o_scaled) / np.sum(np.exp(o_scaled))
+
+        cp = np.cumsum(p, axis=0)
+        ii = np.argmax(cp - rng.uniform() > 0)
+        indices.append(ii)
+
+        x = np.zeros_like(x0)
+        x[ii, 0] = 1.0
+
+    return ''.join(ind_to_char[i] for i in indices)
+
+def SynthesizeNucleus(RNN, h0, x0, n, rng, theta=0.9):
+    """
+    Nucleus sampling. Only sample from the smallest top-k chars summing to >= theta.
+    Low theta = small nucleus (safe), high theta = large nucleus (diverse).
+    """
+    h = h0.copy()
+    x = x0.copy()
+    indices = []
+
+    for _ in range(n):
+        a = RNN['W'] @ h + RNN['U'] @ x + RNN['b']
+        h = np.tanh(a)
+        o = RNN['V'] @ h + RNN['c']
+
+        o -= np.max(o)
+        p = np.exp(o) / np.sum(np.exp(o))  
+        p_flat = p.flatten()
+
+
+        sorted_inds = np.argsort(p_flat)[::-1]   
+        sorted_probs = p_flat[sorted_inds]
+
+        cumsum = np.cumsum(sorted_probs)
+        k = np.argmax(cumsum >= theta) + 1
+        nucleus_inds  = sorted_inds[:k]
+        nucleus_probs = sorted_probs[:k]
+        nucleus_probs = nucleus_probs / nucleus_probs.sum()  # renormalize
+
+        ii = rng.choice(nucleus_inds, p=nucleus_probs)
+
+        indices.append(ii)
+        x = np.zeros_like(x0)
+        x[ii, 0] = 1.0
+
+    return ''.join(ind_to_char[i] for i in indices)
+
 
 def ForwardPass(RNN, X, Y, h0):
     """
@@ -344,3 +407,22 @@ if __name__ == "__main__":
         RNN, book_data, char_to_ind, ind_to_char, K, m,
         seq_length=seq_length, eta=eta, n_epochs=2, rng=rng_train
     )
+
+    print("\n-- Bonus 2.3: Sampling strategies --")
+    h0_synth = np.zeros((m, 1))
+    x0_synth = Char2oneHot(book_data[0], char_to_ind, K).reshape(K, 1)
+    rng_bonus = np.random.default_rng(42)
+
+    # Temperature
+    for T in [0.5, 0.75, 1.5]:
+        synth = SynthesizeTemp(RNN, h0_synth, x0_synth, 200, rng_bonus, T=T)
+        print(f"\n  [Temperature T={T}]\n{synth}")
+        with open(out_dir / f"temp_T{T}.txt", 'w') as f:
+            f.write(synth)
+
+    # Nucleus
+    for theta in [0.5, 0.75, 0.95]:
+        synth = SynthesizeNucleus(RNN, h0_synth, x0_synth, 200, rng_bonus, theta=theta)
+        print(f"\n  [Nucleus theta={theta}]\n{synth}")
+        with open(out_dir / f"nucleus_theta{theta}.txt", 'w') as f:
+            f.write(synth)
