@@ -176,6 +176,61 @@ def AdamUpdate(RNN, grads, m, v, t, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-8)
 
         # parameter update
         RNN[k] -= eta * m_hat / (np.sqrt(v_hat) + eps)
+        
+def TrainRNN(RNN, book_data, char_to_ind, ind_to_char, K, m,
+             seq_length=25, eta=0.001, n_epochs=2, rng=None):
+    if rng is None:
+        rng = np.random.default_rng(42)
+
+    m_adam, v_adam = InitAdam(RNN)
+    t = 0
+    smooth_loss = -np.log(1.0 / K)
+    best_loss   = float('inf')
+    best_synth  = ""
+
+    for epoch in range(1, n_epochs + 1):
+        e      = 0
+        hprev  = np.zeros((m, 1))
+
+        while e + seq_length + 1 <= len(book_data):
+            X_seq = Char2oneHot(book_data[e : e+seq_length],     char_to_ind, K)
+            Y_seq = Char2oneHot(book_data[e+1 : e+seq_length+1], char_to_ind, K)
+
+            loss, P, cache = ForwardPass(RNN, X_seq, Y_seq, hprev)
+            grads = BackwardPass(RNN, cache)
+
+            for k in grads:
+                grads[k] = np.clip(grads[k], -5, 5)
+
+            t += 1
+            AdamUpdate(RNN, grads, m_adam, v_adam, t, eta=eta)
+
+            hprev = cache['H'][:, -1:]
+
+            smooth_loss = 0.999 * smooth_loss + 0.001 * loss
+
+            if smooth_loss < best_loss:
+                best_loss  = smooth_loss
+                best_synth = SynthesizeText(RNN, hprev, X_seq[:, 0:1], 1000, rng)
+
+            if t % 100 == 0:
+                print(f"  epoch {epoch} | step {t:6d} | smooth_loss = {smooth_loss:.4f}")
+
+            if t % 1000 == 0:
+                synth = SynthesizeText(RNN, hprev, X_seq[:, 0:1], 200, rng)
+                print(f"\n  [step {t}]\n{synth}\n")
+                with open(out_dir / f"synthesis_step{t}.txt", 'w') as f:
+                    f.write(synth)
+
+            e += seq_length
+
+        print(f"\n  ── epoch {epoch} complete | step {t} | smooth_loss = {smooth_loss:.4f} ──\n")
+
+    with open(out_dir / "best_synthesis_1000chars.txt", 'w') as f:
+        f.write(best_synth)
+    print(f"\nBest loss reached: {best_loss:.4f}")
+
+    return RNN, smooth_loss
 
 if __name__ == "__main__":
     book_data = loadbook(data_dir / "goblet_book.txt")
